@@ -136,7 +136,7 @@ FROM
     cancer
 WHERE 
     age = 21
-    AND tumor_type = 'Benign'
+    AND tumor_type = 'Malignant'
 ORDER BY 
     tumor_type, age;
 """
@@ -183,37 +183,37 @@ ORDER BY
 """
 
 # d. Calculate the Response to Treatment Over Time
-treatment_response_over_time = """
+treatment_response_by_age_groups = """
 SELECT 
     treatment,
-    age,
-    COUNT(*) OVER (PARTITION BY treatment ORDER BY age ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cumulative_patients,
+    ag.age_groups,
+    COUNT(*) OVER (PARTITION BY treatment ORDER BY ag.age_groups ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cumulative_patients,
 
-    COUNT(CASE WHEN response_to_treatment = 'Complete Response' THEN 1 END) OVER (PARTITION BY treatment ORDER BY age ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cumulative_complete_responses,
+    COUNT(CASE WHEN response_to_treatment = 'Complete Response' THEN 1 END) OVER (PARTITION BY treatment ORDER BY ag.age_groups ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cumulative_complete_responses,
     ROUND(
-        COUNT(CASE WHEN response_to_treatment = 'Complete Response' THEN 1 END) OVER (PARTITION BY treatment ORDER BY age ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) * 100.0 / 
-        COUNT(*) OVER (PARTITION BY treatment ORDER BY age ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), 2
+        COUNT(CASE WHEN response_to_treatment = 'Complete Response' THEN 1 END) OVER (PARTITION BY treatment ORDER BY ag.age_groups ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) * 100.0 / 
+        COUNT(*) OVER (PARTITION BY treatment ORDER BY ag.age_groups ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), 2
     ) AS complete_response_rate,
 
-    COUNT(CASE WHEN response_to_treatment = 'Partial Response' THEN 1 END) OVER (PARTITION BY treatment ORDER BY age ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cumulative_partial_responses,
+    COUNT(CASE WHEN response_to_treatment = 'Partial Response' THEN 1 END) OVER (PARTITION BY treatment ORDER BY ag.age_groups ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cumulative_partial_responses,
     ROUND(
-        COUNT(CASE WHEN response_to_treatment = 'Partial Response' THEN 1 END) OVER (PARTITION BY treatment ORDER BY age ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) * 100.0 / 
-        COUNT(*) OVER (PARTITION BY treatment ORDER BY age ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), 2
+        COUNT(CASE WHEN response_to_treatment = 'Partial Response' THEN 1 END) OVER (PARTITION BY treatment ORDER BY ag.age_groups ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) * 100.0 / 
+        COUNT(*) OVER (PARTITION BY treatment ORDER BY ag.age_groups ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), 2
     ) AS partial_response_rate,
 
-    COUNT(CASE WHEN response_to_treatment = 'No Response' THEN 1 END) OVER (PARTITION BY treatment ORDER BY age ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cumulative_no_responses,
+    COUNT(CASE WHEN response_to_treatment = 'No Response' THEN 1 END) OVER (PARTITION BY treatment ORDER BY ag.age_groups ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cumulative_no_responses,
     ROUND(
-        COUNT(CASE WHEN response_to_treatment = 'No Response' THEN 1 END) OVER (PARTITION BY treatment ORDER BY age ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) * 100.0 / 
-        COUNT(*) OVER (PARTITION BY treatment ORDER BY age ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), 2
+        COUNT(CASE WHEN response_to_treatment = 'No Response' THEN 1 END) OVER (PARTITION BY treatment ORDER BY ag.age_groups ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) * 100.0 / 
+        COUNT(*) OVER (PARTITION BY treatment ORDER BY ag.age_groups ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), 2
     ) AS no_response_rate
 
 FROM 
-    cancer
+    cancer c
+    INNER JOIN age_groups ag ON c.patient_id = ag.patient_id
 WHERE 
     treatment = 'Chemotherapy'
-    AND age = 35
 ORDER BY 
-    treatment, age;
+    treatment, ag.age_groups;
 """
 
 # 2. Tumor Sizes and Detection Based on Gender and Tumor Type
@@ -223,11 +223,15 @@ avg_tumor_sizes = """
 SELECT 
     gender,
     tumor_type,
-    ROUND(AVG(tumor_size) OVER (PARTITION BY gender, tumor_type),2) AS avg_tumor_size
+    ag.age_groups,
+    ROUND(AVG(tumor_size), 2) AS avg_tumor_size
 FROM 
-    cancer
+    cancer c
+    INNER JOIN age_groups ag ON c.patient_id = ag.patient_id
+GROUP BY 
+    gender, tumor_type, ag.age_groups
 ORDER BY 
-    gender, tumor_type;
+    gender, tumor_type, ag.age_groups;
 """
 
 # b. Tumor Detection Rate for Males with Tumor Size
@@ -275,6 +279,8 @@ ORDER BY
 # Combine the CTE and the main queries
 benign = f"{groups} {best_treatment_for_benign}"
 malignant = f"{groups} {best_treatment_for_malignant}"
+tumor_sizes = f"{groups} {avg_tumor_sizes}"
+treatment_responses = f"{groups} {treatment_response_by_age_groups}"
 male_detection = f"{groups} {male_tumor_detection}"
 female_detection = f"{groups} {female_tumor_detection}"
 
@@ -282,8 +288,8 @@ female_detection = f"{groups} {female_tumor_detection}"
 survival_over_time_results = spark.sql(survival_over_time)
 benign_results = spark.sql(benign)
 malignant_results = spark.sql(malignant)
-treatment_response_over_time_results = spark.sql(treatment_response_over_time)
-avg_tumor_sizes_results = spark.sql(avg_tumor_sizes)
+treatment_response_over_time_results = spark.sql(treatment_responses)
+avg_tumor_sizes_results = spark.sql(tumor_sizes)
 male_detection_results = spark.sql(male_detection)
 female_detection_results = spark.sql(female_detection)
 
