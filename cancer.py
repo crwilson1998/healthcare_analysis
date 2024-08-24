@@ -1,6 +1,6 @@
 /*
 
-Customer Segementation Data Exploration 
+Patient Outcome Data Exploration 
 
 Skills used: Joins, CTE's, Windows Functions, Aggregate Functions, Data Visualization 
 
