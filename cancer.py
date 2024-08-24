@@ -1,3 +1,12 @@
+/*
+
+Customer Segementation Data Exploration 
+
+Skills used: Joins, CTE's, Windows Functions, Aggregate Functions, Data Visualization 
+
+*/
+
+
 from pyspark.sql import SparkSession
 import matplotlib.pyplot as plt
 import seaborn as sns
